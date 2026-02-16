@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión RFID</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+            width: 500px; /* Más ancho para aprovechar espacio */
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .card:hover { transform: translateY(-5px); }
+        
+        h2 { color: #444; margin-bottom: 0.5rem; margin-top: 0; }
+        .icon { font-size: 4rem; margin-bottom: 1rem; display: block; }
+        
+        /* Estados y Alertas */
+        #status {
+            margin-bottom: 1.5rem;
+            padding: 0.8rem;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .status-waiting { color: #888; background: #f0f0f0; border: 1px dashed #ccc; }
+        .status-detected { color: #0056b3; background: #e3f2fd; border: 1px solid #b3d7ff; }
+
+        .input-group { text-align: left; margin-bottom: 1rem; }
+        label { font-size: 0.8rem; color: #666; margin-left: 5px; }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-top: 5px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            box-sizing: border-box;
+            font-size: 1.1rem;
+            transition: border-color 0.3s;
+            text-align: center;
+        }
+        input:focus { border-color: #667eea; outline: none; }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: filter 0.2s;
+        }
+        button:hover { filter: brightness(1.1); }
+
+        /* Colores dinámicos */
+        .btn-save { background: linear-gradient(to right, #11998e, #38ef7d); } /* Verde */
+        .btn-update { background: linear-gradient(to right, #2193b0, #6dd5ed); } /* Azul */
+        .btn-delete { background: #ff5f6d; margin-top: 20px; font-size: 0.9rem; opacity: 0.8; }
+
+        .hidden { display: none; }
+        #uid-display { font-family: monospace; font-size: 1.2rem; color: #333; letter-spacing: 1px; }
+
+        /* Nuevos estilos para selección de modo */
+        .mode-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border: 2px solid #eee;
+            color: #555;
+            margin-bottom: 15px;
+            transition: all 0.2s;
+        }
+        .mode-btn:hover {
+            border-color: #667eea;
+            background: #f9faff;
+            transform: translateY(-2px);
+        }
+        .mode-btn strong { font-size: 1.1rem; display: block; margin-bottom: 5px; }
+        .mode-btn small { font-weight: normal; opacity: 0.7; font-size: 0.85rem; }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .btn-back {
+            width: auto;
+            margin: 0;
+            padding: 8px 15px;
+            background: #eee;
+            color: #555;
+            font-size: 0.9rem;
+        }
+        
+        /* Mensaje de éxito persistente */
+        .success-overlay {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border: 1px solid #c3e6cb;
+        }
+
+        /* Lista de tarjetas en modo múltiple */
+        #batch-list {
+            text-align: left;
+            max-height: 150px;
+            overflow-y: auto;
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        .batch-item { 
+            padding: 8px; 
+            border-bottom: 1px solid #eee; 
+            font-family: monospace; 
+            color: #555; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            background: white;
+            margin-bottom: 5px;
+            border-radius: 5px;
+        }
+        .batch-item-existing {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+        }
+        .existing-tag { font-weight: bold; font-size: 0.9em; margin-left: 5px; }
+        .btn-mini-delete {
+            width: auto;
+            padding: 4px 8px;
+            margin: 0 0 0 10px;
+            background: #ff6b6b;
+            font-size: 0.9rem;
+            box-shadow: none;
+        }
+        /* Estilos para pantalla de gestión */
+        #manage-list {
+            text-align: left;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .manage-item {
+            background: #f9f9f9;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .manage-info { display: flex; flex-direction: column; text-align: left; }
+        .manage-uid { font-family: monospace; font-size: 0.85rem; color: #888; }
+        .manage-name { font-weight: bold; color: #333; }
+        .trash-icon {
+            font-size: 1.5rem;
+            cursor: pointer;
+            opacity: 0.3;
+            filter: grayscale(100%);
+            transition: all 0.2s;
+            margin-left: 15px;
+            user-select: none;
+        }
+        .trash-icon:hover { opacity: 0.6; }
+        .trash-icon.selected {
+            opacity: 1;
+            filter: none;
+            transform: scale(1.2);
+        }
+        .manage-item.selected-row {
+            background-color: #fff5f5;
+            border-color: #ffc9c9;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <!-- PANTALLA 1: SELECCIÓN DE MODO -->
+        <div id="screen-select">
+            <span class="icon">🗂️</span>
+            <h2>Gestión RFID</h2>
+            <p style="color:#666; margin-bottom: 25px;">Selecciona cómo quieres trabajar hoy:</p>
+            
+            <button class="mode-btn" onclick="selectMode('single')">
+                <strong>👤 Modo Individual</strong>
+                <small>Escanear y guardar tarjetas una por una.</small>
+            </button>
+            
+            <button class="mode-btn" onclick="selectMode('multiple')">
+                <strong>👥 Modo Múltiple</strong>
+                <small>Acumula tarjetas y ponles nombre a todas juntas.</small>
+            </button>
+            
+            <button class="mode-btn" onclick="selectMode('manage')">
+                <strong>🗑️ Eliminar</strong>
+                <small>Buscar y borrar tarjetas registradas.</small>
+            </button>
+        </div>
+
+        <!-- PANTALLA 2: ÁREA DE TRABAJO -->
+        <div id="screen-work" class="hidden">
+            <div class="header-bar">
+                <button class="btn-back" onclick="goHome()">⬅ Volver</button>
+                <span id="mode-label" style="font-weight:bold; color:#888;">Modo</span>
+            </div>
+
+            <div id="status" class="status-waiting">Esperando tarjeta...</div>
+            
+            <div id="interaction-area" class="hidden">
+                <div class="input-group">
+                    <label>UID Tarjeta</label>
+                    <div id="uid-display"></div> <!-- Modo Single -->
+                    <div id="batch-list" class="hidden"></div> <!-- Modo Multiple -->
+                </div>
+                
+                <input type="text" id="name-input" placeholder="Alias de la tarjeta..." autocomplete="off">
+                
+                <button id="action-btn" class="btn-save">Guardar</button>
+                <button id="delete-btn" class="btn-delete hidden">Eliminar registro</button>
+            </div>
+
+            <!-- Mensaje de éxito -->
+            <div id="success-msg" class="hidden success-overlay">
+                <h3 style="margin:0 0 10px 0;">✅ ¡Guardado!</h3>
+                <p id="success-text" style="margin:0;">Los datos se han registrado correctamente.</p>
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <button id="next-btn" onclick="finishSuccess()" style="background:#155724; flex:2;">Continuar Registrando</button>
+                    <button onclick="goHome()" style="background:#6c757d; flex:1;">Volver al Menú</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANTALLA 3: GESTIÓN -->
+        <div id="screen-manage" class="hidden">
+            <div class="header-bar">
+                <button class="btn-back" onclick="goHome()">⬅ Volver</button>
+                <span style="font-weight:bold; color:#888;">Gestión de Tarjetas</span>
+            </div>
+            
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <input type="text" id="search-input" placeholder="🔍 Buscar..." onkeyup="filterManageList()" style="margin-top:0;">
+                <button id="btn-delete-multi" class="btn-delete hidden" style="width:auto; margin:0; padding: 10px; font-size:0.9rem;" onclick="deleteSelectedBatch()">🗑️ Borrar (<span id="selected-count">0</span>)</button>
+            </div>
+
+            <div style="text-align:left; margin-bottom:10px; padding-left:5px;">
+                <label style="cursor:pointer; font-weight:bold; color:#555;">
+                    <input type="checkbox" id="select-all-chk" onchange="toggleSelectAll()" style="transform: scale(1.2); margin-right: 8px;"> Seleccionar todo
+                </label>
+            </div>
+
+            <div id="manage-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:3000');
+        const statusDiv = document.getElementById('status');
+        const interactionArea = document.getElementById('interaction-area');
+        const successMsg = document.getElementById('success-msg');
+        const successText = document.getElementById('success-text');
+        const uidDisplay = document.getElementById('uid-display');
+        const nameInput = document.getElementById('name-input');
+        const actionBtn = document.getElementById('action-btn');
+        const deleteBtn = document.getElementById('delete-btn');
+        
+        // Pantallas
+        const screenSelect = document.getElementById('screen-select');
+        const screenWork = document.getElementById('screen-work');
+        const screenManage = document.getElementById('screen-manage');
+        const batchListDiv = document.getElementById('batch-list');
+        const modeLabel = document.getElementById('mode-label');
+
+        let currentUid = null;
+        let scannedCards = []; // Array para modo múltiple
+        let allAliases = {};   // Base de datos local
+        let currentMode = 'single'; // 'single' o 'multiple'
+        let successTimer = null;
+        let blockingInput = false;
+
+        function selectMode(mode) {
+            currentMode = mode;
+            screenSelect.classList.add('hidden');
+            
+            if (mode === 'manage') {
+                screenManage.classList.remove('hidden');
+                renderManageList();
+            } else {
+                screenWork.classList.remove('hidden');
+                modeLabel.innerText = mode === 'single' ? "Modo Individual" : "Modo Múltiple (Lote)";
+                resetScanner();
+            }
+        }
+
+        function goHome() {
+            if (successTimer) clearTimeout(successTimer);
+            blockingInput = false;
+            screenWork.classList.add('hidden');
+            screenManage.classList.add('hidden');
+            screenSelect.classList.remove('hidden');
+            currentUid = null;
+        }
+
+        function resetScanner() {
+            statusDiv.innerText = "Esperando tarjeta...";
+            statusDiv.className = "status-waiting";
+            
+            // Limpiar datos
+            scannedCards = [];
+            batchListDiv.innerHTML = '';
+            batchListDiv.classList.add('hidden');
+            uidDisplay.classList.remove('hidden'); // Mostrar display individual por defecto
+            nameInput.value = "";
+            
+            interactionArea.classList.add('hidden');
+            successMsg.classList.add('hidden');
+            currentUid = null;
+        }
+
+        function finishSuccess() {
+            blockingInput = false;
+            resetScanner();
+        }
+
+        function updateBatchList() {
+            batchListDiv.innerHTML = '';
+            batchListDiv.classList.remove('hidden');
+            uidDisplay.classList.add('hidden'); // Ocultar display individual
+            
+            scannedCards.forEach((card, index) => {
+                const div = document.createElement('div');
+                div.className = 'batch-item' + (card.knownName ? ' batch-item-existing' : '');
+                
+                let text = `🏷️ ${card.uid}`;
+                if (card.knownName) text += ` <span class="existing-tag">(Ya es: ${card.knownName})</span>`;
+                
+                div.innerHTML = `<span>${text}</span>`;
+                
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-mini-delete';
+                delBtn.innerHTML = '🗑️';
+                delBtn.onclick = () => removeBatchItem(index);
+                
+                div.appendChild(delBtn);
+                batchListDiv.appendChild(div);
+            });
+        }
+
+        function removeBatchItem(index) {
+            scannedCards.splice(index, 1);
+            updateBatchList();
+            statusDiv.innerText = `${scannedCards.length} tarjetas en lista`;
+            actionBtn.innerText = `Guardar Lote (${scannedCards.length})`;
+        }
+
+        function renderManageList() {
+            const list = document.getElementById('manage-list');
+            const filter = document.getElementById('search-input').value.toLowerCase();
+            
+            list.innerHTML = '';
+            
+            const entries = Object.entries(allAliases);
+            
+            if (entries.length === 0) {
+                list.innerHTML = '<div style="color:#999; padding:20px;">No hay tarjetas guardadas.</div>';
+                return;
+            }
+
+            entries.forEach(([uid, name]) => {
+                if (uid.toLowerCase().includes(filter) || name.toLowerCase().includes(filter)) {
+                    const div = document.createElement('div');
+                    div.className = 'manage-item';
+                    div.onclick = (e) => { if(e.target !== div.querySelector('.trash-icon')) toggleTrash(uid); };
+                    div.innerHTML = `
+                        <div class="manage-info" style="flex:1;">
+                            <span class="manage-name">${name}</span>
+                            <span class="manage-uid">${uid}</span>
+                        </div>
+                        <div class="trash-icon" id="trash-${uid}" onclick="toggleTrash('${uid}')">🗑️</div>
+                    `;
+                    list.appendChild(div);
+                }
+            });
+            updateDeleteButton(); // Actualizar estado del botón
+        }
+
+        function filterManageList() {
+            renderManageList();
+        }
+
+        function toggleTrash(uid) {
+            const icon = document.getElementById(`trash-${uid}`);
+            const row = icon.parentElement;
+            
+            if (icon.classList.contains('selected')) {
+                icon.classList.remove('selected');
+                row.classList.remove('selected-row');
+            } else {
+                icon.classList.add('selected');
+                row.classList.add('selected-row');
+            }
+            updateDeleteButton();
+        }
+
+        function toggleSelectAll() {
+            const masterChk = document.getElementById('select-all-chk');
+            const icons = document.querySelectorAll('.trash-icon');
+            icons.forEach(icon => {
+                const uid = icon.id.replace('trash-', '');
+                const row = icon.parentElement;
+                if (masterChk.checked) {
+                    icon.classList.add('selected');
+                    row.classList.add('selected-row');
+                } else {
+                    icon.classList.remove('selected');
+                    row.classList.remove('selected-row');
+                }
+            });
+            updateDeleteButton();
+        }
+
+        function updateDeleteButton() {
+            const selected = document.querySelectorAll('.trash-icon.selected');
+            const btn = document.getElementById('btn-delete-multi');
+            const countSpan = document.getElementById('selected-count');
+            
+            if (selected.length > 0) {
+                btn.classList.remove('hidden');
+                countSpan.innerText = selected.length;
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function deleteSelectedBatch() {
+            const selected = document.querySelectorAll('.trash-icon.selected');
+            if (selected.length === 0) return;
+
+            if (confirm(`¿Seguro que quieres borrar ${selected.length} tarjetas seleccionadas?`)) {
+                const uidsToDelete = Array.from(selected).map(icon => icon.id.replace('trash-', ''));
+                ws.send(JSON.stringify({ type: 'delete-batch-alias', uids: uidsToDelete }));
+                
+                // Limpiar selección
+                document.getElementById('select-all-chk').checked = false;
+            }
+        }
+
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            
+            // 0. ACTUALIZACIÓN DE BASE DE DATOS (Recibimos la lista completa)
+            if (msg.type === 'aliases-update') {
+                allAliases = msg.data;
+                if (currentMode === 'manage') {
+                    renderManageList();
+                }
+                return;
+            }
+
+            // 1. RESPUESTA DE ÉXITO (Con Timeout de 5s)
+            if (msg.type === 'save-success') {
+                blockingInput = true; // Bloquear lecturas mientras se muestra el éxito
+                interactionArea.classList.add('hidden');
+                successMsg.classList.remove('hidden');
+                
+                const count = currentMode === 'multiple' ? scannedCards.length : 1;
+                const name = nameInput.value;
+                document.getElementById('success-text').innerText = `Se han guardado ${count} tarjeta(s) como "${name}".`;
+
+                return;
+            }
+
+            // 2. RESPUESTA DE ERROR (Alerta y NO reinicia)
+            if (msg.type === 'error') {
+                alert("❌ Ocurrió un error al guardar:\n" + msg.message + "\n\nInténtalo de nuevo.");
+                return;
+            }
+
+            // 3. LECTURA DE TARJETA
+            if (msg.type === 'card-read') {
+                if (blockingInput) return; // Ignorar tarjetas si estamos mostrando éxito
+                // Si ya estábamos mostrando un éxito, lo ocultamos al leer nueva tarjeta
+                successMsg.classList.add('hidden');
+                if (successTimer) clearTimeout(successTimer);
+                
+                currentUid = msg.uid;
+                
+                if (currentMode === 'multiple') {
+                    // --- LÓGICA MODO MÚLTIPLE (ACUMULAR) ---
+                    const exists = scannedCards.some(c => c.uid === msg.uid);
+                    if (!exists) {
+                        scannedCards.push({ uid: msg.uid, knownName: msg.knownName });
+                        updateBatchList();
+                    }
+                    
+                    interactionArea.classList.remove('hidden');
+                    statusDiv.innerText = `${scannedCards.length} tarjetas en lista`;
+                    statusDiv.className = "status-detected";
+                    
+                    actionBtn.innerText = `Guardar Lote (${scannedCards.length})`;
+                    actionBtn.className = "btn-save";
+                    deleteBtn.classList.add('hidden');
+                    
+                } else {
+                    // --- LÓGICA MODO INDIVIDUAL (EXISTENTE) ---
+                    uidDisplay.innerText = currentUid;
+                    interactionArea.classList.remove('hidden');
+                    
+                    if (msg.knownName) {
+                        statusDiv.innerText = "¡Tarjeta ya registrada!";
+                        statusDiv.className = "status-detected";
+                        nameInput.value = msg.knownName;
+                        actionBtn.innerText = "Actualizar Datos";
+                        actionBtn.className = "btn-update";
+                        deleteBtn.classList.remove('hidden');
+                    } else {
+                        statusDiv.innerText = "Nueva Tarjeta Detectada";
+                        statusDiv.className = "status-detected";
+                        nameInput.value = "";
+                        actionBtn.innerText = "Guardar Nuevo";
+                        actionBtn.className = "btn-save";
+                        deleteBtn.classList.add('hidden');
+                    }
+                }
+            }
+        };
+
+        actionBtn.onclick = () => {
+            const name = nameInput.value;
+            if (!name) return alert("Por favor, escribe un nombre.");
+            
+            if (currentMode === 'single') {
+                if (!currentUid) return;
+                ws.send(JSON.stringify({ type: 'save-alias', uid: currentUid, name: name }));
+            } else {
+                if (scannedCards.length === 0) return alert("No has escaneado ninguna tarjeta aún.");
+                ws.send(JSON.stringify({ type: 'save-batch-alias', uids: scannedCards.map(c => c.uid), name: name }));
+            }
+            // Nota: Ya no ocultamos la interfaz aquí, esperamos al mensaje 'save-success' del servidor
+        };
+
+        deleteBtn.onclick = () => {
+            if (!currentUid) return;
+            if(confirm("¿Seguro que quieres borrar esta tarjeta?")) {
+                ws.send(JSON.stringify({ type: 'delete-alias', uid: currentUid }));
+                resetScanner();
+                statusDiv.innerText = "Registro eliminado.";
+            }
+        };
+    </script>
+</body>
+</html>
